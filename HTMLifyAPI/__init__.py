@@ -144,13 +144,10 @@ class HTMLify:
     def user(username:str) -> User:
         return User(username.lower())
 
-
-# File class
-# HTMLifyUser class
-# 
-# Some Errors
-
-# 
-
-
+    def search(self, query:str) -> list[File]:
+        if not query or not isinstance(query, str):
+            raise ValueError("Query must be a non empty string")
+        res = loads(get(self.SERVER+"/api/search", params={"q":query}).text)
+        for result in res["results"]:
+            yield self.file(result["id"])
 
