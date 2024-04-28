@@ -4,7 +4,7 @@ The HTMLify API wrapper
 ## Instalation:
 
 ```shell
-pip install git+https://GitHub.com/AmanBabuHemant/HTMLifyAPI
+pip install git+https://GitHub.com/AmanBabuHemant/HTMLifyAPI.git
 ```
 
 ## Usage

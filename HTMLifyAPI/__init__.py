@@ -18,6 +18,7 @@ class ShortLink:
 class File:
     def __init__(self):
         pass
+
     @staticmethod
     def from_json(json: dict) -> "File":
         """Create File object from json-dict"""
@@ -32,11 +33,25 @@ class File:
         self.bytes = get(raw_path).content
         self.path = self.url[len(hostname)+1:]
         return self
+
     def delete(self) -> None:
+        """Delete self content"""
         if htmlify := HTMLify.get_instance():
             return htmlify.delete(self.id)
         else:
             raise Exception("Create an HTMLify instance first")
+
+    def update_content(self, content: str):
+        """Update self content"""
+        if self.type != "text":
+            raise Exception("Can't edit non-text file")
+        if htmlify := HTMLify.get_instance():
+            if htmlify.edit(self.id, content):
+                self.text = str(content)
+                self.bytes = self.text.encode()
+                return True
+        raise Exception("Create an HTMLify instance first")
+
 class User:
     def __init__(self, username=None):
         if username:
@@ -55,7 +70,7 @@ class User:
         htmlify = HTMLify.get_instance()
         if not htmlify:
             raise Exception("Create an HMTLify object first")
-        return htmlify.SERVER + "/" + username
+        return htmlify.SERVER + "/" + self.username
 
 
 class HTMLify:
@@ -73,8 +88,8 @@ class HTMLify:
         if HTMLify.instances:
             return HTMLify.instances[-1]
 
-    def create(self, content="", path="", ext="", as_guest=False, mode="s", visibility="p") -> File:
-        """Create a file"""
+    def create(self, path="", content="", ext="", as_guest=False, mode="s", visibility="p") -> File:
+        """Create a new file"""
         if not ext and path:
             ext = path.split(".")[-1]
         if not content:
@@ -101,6 +116,28 @@ class HTMLify:
             print(res["error"])
             return False
         return self.file(res["id"])
+
+    def edit(self, id: int, content: str):
+        """Update a file's content"""
+        try:
+            id = int(id)
+            content = str(content)
+        except:
+            raise ValueError("Please provide valid arguments")
+
+        data = {
+            "id": id,
+            "username": self.username,
+            "api-key": self.api_key,
+            "content": content
+        }
+        res = loads(post(self.SERVER+"/api/edit", data=data).text)
+        if "success" in res.keys():
+            return True
+        return False
+
+    def update(self, *args, **kargs):
+        return self.edit(*args, **kargs)
 
     def file(self, id:int) -> File:
         """Return File by ID"""
