@@ -4,6 +4,15 @@ from json import loads
 class ShortLink:
     def __init__(self):
         pass
+    def __repr__(self):
+        return "<ShortLink to '" + str(self) + "' >"
+    def __str__(self):
+        if self.href.startswith("http://") or self.href.startswith("https://"):
+            return self.href
+        htmlify = HTMLify.get_instance()
+        if self.href.startswith("/"):
+            return htmlify.SERVER + self.href
+        return htmlify.SERVER + "/r/" + self.href
     @staticmethod
     def from_json(json: dict) -> "ShortLink":
         """Create ShortLink object from json-dict"""
@@ -31,7 +40,7 @@ class File:
         hostname = self.url[:self.url.find("/", 8)]
         raw_path = hostname + "/raw/" + self.url[len(hostname)+1:]
         self.bytes = get(raw_path).content
-        self.path = self.url[len(hostname)+1:]
+        self.path = self.url[len(hostname):]
         return self
 
     def delete(self) -> None:
@@ -51,6 +60,15 @@ class File:
                 self.bytes = self.text.encode()
                 return True
         raise Exception("Create an HTMLify instance first")
+
+    def shortlink(self) -> ShortLink:
+        """Return self shorten url of self"""
+        htmlify = HTMLify.get_instance()
+        return htmlify.shortlink(url=self.path)
+
+    def size(self) -> int:
+        """Return file size in bytes"""
+        return len(self.bytes)
 
 class User:
     def __init__(self, username=None):
@@ -72,6 +90,41 @@ class User:
             raise Exception("Create an HMTLify object first")
         return htmlify.SERVER + "/" + self.username
 
+class Notification:
+    def __init__(self):
+        pass
+    @staticmethod
+    def from_json(json):
+        self = Notification()
+        self.id = json["id"]
+        self.user = json["user"]
+        self.content = json["content"]
+        self.href = json["href"]
+        self.seen = json["seen"]
+        return self
+
+    def mark_seen(self):
+        htmlify = HTMLify.get_instance()
+        data = {
+            "username": htmlify.username,
+            "api-key": htmlify.api_key,
+            "markseen": self.id,
+        }
+        res = loads(post(htmlify.SERVER+"/api/notifications", data=data).text)
+        return not res["error"]
+
+class Comment:
+    def __init__(self):
+        pass
+    @staticmethod
+    def from_json(json):
+        self = Comment()
+        self.id = json["id"]
+        self.file = json["file"]
+        self.content = json["content"]
+        self.author = json["author"]
+        return self
+
 
 class HTMLify:
 
@@ -87,6 +140,7 @@ class HTMLify:
     def get_instance(HTMLify):
         if HTMLify.instances:
             return HTMLify.instances[-1]
+        raise Exception("Create an HTMLify instance first")
 
     def create(self, path="", content="", ext="", as_guest=False, mode="s", visibility="p") -> File:
         """Create a new file"""
@@ -187,4 +241,60 @@ class HTMLify:
         res = loads(get(self.SERVER+"/api/search", params={"q":query}).text)
         for result in res["results"]:
             yield self.file(result["id"])
+
+    def notification(self, id=0) -> Notification | list[Notification]:
+        """Return Notifications"""
+        data = {
+            "username": self.username,
+            "api-key": self.api_key,
+            "id": id,
+        }
+        res = loads(post(self.SERVER+"/api/notifications", data=data).text)
+        if "notifications" in res.keys():
+            for n in res["notifications"]:
+                print(n)
+                yield Notification.from_json(n)
+        else:
+            return Notification.from_json(res)
+
+    def get_comment(self, id: int) -> "Comment":
+        """Get comment by ID"""
+        data = {
+            "username": self.username,
+            "api-key": self.api_key,
+            "id": id,
+        }
+        res = post(self.SERVER+"/api/comment", data=data).json()
+        print(res)
+        if res["error"]:
+            return None
+        return Comment.from_json(res)
+
+    def post_comment(self, file, content):
+        """
+        Post a comment on a file
+        Args:
+            file (int, File): File's id or File object
+            content (str): Content
+        """
+        if isinstance(file, File):
+            id = file.id
+        elif isinstance(file, int):
+            id = file
+        else:
+            raise ValueError("argument file can only be int or File type not " + str(type(file)))
+        content = str(content)
+        if not content:
+            raise ValueError("Comment content can't be empty")
+        if len(content) > 1024:
+            raise ValueError("Conett length should be under 1024 charecters")
+        data = {
+            "username": self.username,
+            "api-key": self.api_key,
+            "file": id,
+            "content": content,
+        }
+        res = loads(post(self.SERVER + "/api/comment", data=data).text)
+        return not res["error"]
+
 
