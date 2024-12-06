@@ -125,6 +125,25 @@ class Comment:
         self.author = json["author"]
         return self
 
+class Process:
+    def __init__(self, pid):
+        self.pid = pid
+        self.full_stdout = ""
+        self.full_stderr = ""
+        self.full_stdin = ""
+
+    def communicate(self, input=""):
+        htmlify = HTMLify.get_instance()
+        data = {
+            "input": input
+        }
+        res = htmlify.proc_communicate(self.pid, input)
+        if "pid" in res:
+            self.full_stdout += res["stdout"]
+            self.full_stderr += res["stderr"]
+        self.full_stdin += input
+        return res
+
 
 class HTMLify:
 
@@ -296,5 +315,24 @@ class HTMLify:
         }
         res = loads(post(self.SERVER + "/api/comment", data=data).text)
         return not res["error"]
+
+    def execute(self, code, executor) -> Process:
+        data = {
+            "code": code,
+            "executor": executor
+        }
+        res = post(self.SERVER + "/api/exec", data=data).json()
+        if res["error"]:
+            raise res["message"]
+
+        proc = Process(res["pid"])
+        return proc
+
+    def proc_communicate(self, pid, input="") -> dict:
+        data = {
+            "input": input
+        }
+        res = post(self.SERVER + f"/proc/{pid}/communicate", data=data).json()
+        return res
 
 
